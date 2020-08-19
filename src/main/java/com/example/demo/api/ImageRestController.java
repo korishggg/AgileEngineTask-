@@ -1,5 +1,6 @@
 package com.example.demo.api;
 
+import com.example.demo.dto.ImageDTO;
 import com.example.demo.entity.Image;
 import com.example.demo.service.ImageService;
 import org.springframework.http.HttpStatus;
@@ -19,7 +20,7 @@ public class ImageRestController {
 
     @GetMapping("/images")
     public ResponseEntity<?> getImages(){
-        List<Image> list = imageService.findAll();
+        List<ImageDTO> list = imageService.findAll();
         return list.isEmpty() ? new ResponseEntity(HttpStatus.NO_CONTENT) : new ResponseEntity(list, HttpStatus.OK);
     }
 
@@ -29,12 +30,4 @@ public class ImageRestController {
                 .map(image -> new ResponseEntity(image, HttpStatus.OK))
                 .orElseGet(() -> new ResponseEntity(HttpStatus.NO_CONTENT));
     }
-
-//    @GetMapping("/search/${searchTerm}")
-//    public ResponseEntity<?> findBySearchTerm(@PathVariable String searchTerm){
-//        List<Image> list = imageService.findBySearchTerm(searchTerm);
-//        return list.isEmpty() ? new ResponseEntity(HttpStatus.NO_CONTENT) : new ResponseEntity(list, HttpStatus.OK);
-//    }
-
-
 }

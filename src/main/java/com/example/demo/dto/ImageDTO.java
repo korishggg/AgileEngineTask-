@@ -12,8 +12,8 @@ import java.util.List;
 @AllArgsConstructor
 public class ImageDTO {
     private String id;
-    private AuthorDTO authorDTO;
-    private CameraDTO cameraDTO;
+    private String author;
+    private String camera;
     private List<TagDTO> tags;
     private String cropped_picture;
     private String full_picture;

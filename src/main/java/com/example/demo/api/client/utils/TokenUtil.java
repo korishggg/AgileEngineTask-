@@ -11,6 +11,8 @@ import org.springframework.web.client.RestTemplate;
 public class TokenUtil {
     @Value("${agileengine.api.key}")
     private String apiKey;
+    @Value("${agileengine.external.url}")
+    private String externalUrl;
 
     private RestTemplate restTemplate;
 
@@ -23,7 +25,7 @@ public class TokenUtil {
 
         ResponseEntity<AgileEngineAuthorizationResponse> responseEntity = restTemplate
                 .postForEntity(
-                        "http://interview.agileengine.com/auth",
+                        externalUrl+"/auth",
                         request,
                         AgileEngineAuthorizationResponse.class
                 );

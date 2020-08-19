@@ -1,96 +1,75 @@
 package com.example.demo.service.impl;
 
-import com.example.demo.api.client.response.AgileEngineAuthorizationResponse;
-import com.example.demo.api.client.response.ImageResponse;
-import com.example.demo.api.client.response.PictureResponse;
-import com.example.demo.api.client.response.RefreshImageResponse;
+import com.example.demo.api.client.response.*;
 import com.example.demo.api.client.utils.TokenUtil;
-import com.example.demo.dto.AuthorDTO;
-import com.example.demo.dto.CameraDTO;
-import com.example.demo.dto.ImageDTO;
-import com.example.demo.dto.TagDTO;
 import com.example.demo.entity.Author;
 import com.example.demo.entity.Camera;
 import com.example.demo.entity.Image;
 import com.example.demo.entity.Tag;
+import com.example.demo.mapper.ImageMapper;
 import com.example.demo.service.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 public class DataFetcherServiceImpl implements DataFetcherService {
 
+    private static final Logger log = LoggerFactory.getLogger(DataFetcherServiceImpl.class);
+
+    @Value("${agileengine.external.url}")
+    private String externalUrl;
+
     private TokenUtil tokenUtil;
     private RestTemplate restTemplate;
-    private AuthorService authorService;
     private ImageService imageService;
-    private TagService tagService;
-    private CameraService cameraService;
 
-    public DataFetcherServiceImpl(TokenUtil tokenUtil, RestTemplate restTemplate, AuthorService authorService, ImageService imageService, TagService tagService, CameraService cameraService) {
+    public DataFetcherServiceImpl(TokenUtil tokenUtil, RestTemplate restTemplate, ImageService imageService) {
         this.tokenUtil = tokenUtil;
         this.restTemplate = restTemplate;
-        this.authorService = authorService;
         this.imageService = imageService;
-        this.tagService = tagService;
-        this.cameraService = cameraService;
     }
 
-
     @Override
-    public List<ImageDTO> fetchImagesByPage(String page) {
+    public ImageDTOResponse fetchImagesByPage(String page) {
 
         HttpEntity<String> httpEntity = getCompletedHttpEntity();
         ResponseEntity<RefreshImageResponse> responseEntity;
+
         if (page == null || page.equals("")) {
-            responseEntity = restTemplate.exchange("http://interview.agileengine.com/images", HttpMethod.GET, httpEntity, RefreshImageResponse.class);
+            responseEntity = restTemplate.exchange(externalUrl+"/images", HttpMethod.GET, httpEntity, RefreshImageResponse.class);
         } else {
-            responseEntity = restTemplate.exchange("http://interview.agileengine.com/images?page=" + page, HttpMethod.GET, httpEntity, RefreshImageResponse.class);
+            responseEntity = restTemplate.exchange(externalUrl+"/images?page=" + page, HttpMethod.GET, httpEntity, RefreshImageResponse.class);
         }
 
-        List<PictureResponse> pictureResponses = responseEntity.getBody().getPictures();
-        List<ImageDTO> imageDTOS = new ArrayList<>();
+        RefreshImageResponse refreshImageResponse = responseEntity.getBody();
+        List<PictureResponse> pictureResponses = refreshImageResponse.getPictures();
+        List<ImageResponse> imageResponses = new ArrayList<>();
         for (PictureResponse pictureResponse : pictureResponses) {
-            ResponseEntity<ImageResponse> imageResponseResponseEntity = restTemplate.exchange("http://interview.agileengine.com/images/" + pictureResponse.getId(), HttpMethod.GET, httpEntity, ImageResponse.class);
-            imageDTOS.add(imageResponseResponseEntity.getBody().mapToImageDTO());
+            ResponseEntity<ImageResponse> imageResponseResponseEntity = restTemplate.exchange(externalUrl+"/images/" + pictureResponse.getId(), HttpMethod.GET, httpEntity, ImageResponse.class);
+            imageResponses.add(imageResponseResponseEntity.getBody());
         }
 
+        List<Image> images = mapImageResponsesToImages(imageResponses);
 
-//        Image image = new Image()
+        imageService.saveAll(images);
 
-//        List<Author> authors = imageDTOS.stream().map(imageDTO -> new Author(imageDTO.getAuthor())).collect(Collectors.toList());
-//        TODO
+        log.info("Persisted fetched data for " + page + " page");
 
-        List<Image> images = mapImageDTOToImage(imageDTOS);
-        List<Author> authors = images.stream().map(image -> image.getAuthor()).distinct().collect(Collectors.toList());
-        List<Camera> cameras = images.stream().map(image -> image.getCamera()).distinct().collect(Collectors.toList());
-
-
-        List<List<Tag>> tagsList = images.stream().map(image -> image.getTags()).distinct().collect(Collectors.toList());
-        for (List<Tag> tagList: tagsList) {
-            tagService.saveIfNotExist(tagList);
-        }
-
-        authorService.saveIfNotExist(authors);
-        cameraService.saveIfNotExist(cameras);
-//        tags.saveAll(authors);
-
-//        imageDTOS.get(0).getAuthor()
-//
-//        System.out.println(images);
-//
-//        images.get(0).getAuthor();
-        imageService.saveIfNotExist(images);
-
-
-        return imageDTOS;
+        return new ImageDTOResponse(refreshImageResponse.getPageCount(),
+                images.stream()
+                        .map(image -> ImageMapper.mapToImageDTO(image))
+                        .collect(Collectors.toList())
+        );
     }
-
 
     private HttpEntity<String> getCompletedHttpEntity() {
         AgileEngineAuthorizationResponse agileEngineAuthorizationResponse = tokenUtil.retrieveToken();
@@ -102,34 +81,22 @@ public class DataFetcherServiceImpl implements DataFetcherService {
         return new HttpEntity<String>(headers);
     }
 
-    private List<Image> mapImageDTOToImage(List<ImageDTO> imageDTOS) {
-        return imageDTOS.stream()
-                .map(imageDTO -> new Image(
-                                imageDTO.getId(),
-                                mapToAuthor(imageDTO.getAuthorDTO()),
-                                mapToTag(imageDTO.getTags()),
-                                mapToCamera(imageDTO.getCameraDTO()),
-                                imageDTO.getCropped_picture(),
-                                imageDTO.getFull_picture()
-                        )
-                ).collect(Collectors.toList());
+    private List<Image> mapImageResponsesToImages(List<ImageResponse> imageResponses){
+        List<Image> images = new ArrayList<>();
+        for (ImageResponse imageResponse: imageResponses) {
+            Image image = new Image(imageResponse.getId(), imageResponse.getCropped_picture(), imageResponse.getFull_picture());
+            Camera camera = new Camera(imageResponse.getCamera() == null ? "" : imageResponse.getCamera());
+            Author author = new Author(imageResponse.getAuthor() == null ? "" : imageResponse.getAuthor());
+            List<Tag> tags = Arrays.asList(imageResponse.getTags().split("[#]", 0)).stream()
+                    .filter(tag -> !tag.isEmpty())
+                    .map(tag -> new Tag(tag))
+                    .collect(Collectors.toList());
+
+            image.setTags(tags);
+            image.setCamera(camera);
+            image.setAuthor(author);
+            images.add(image);
+        }
+        return images;
     }
-
-    private List<Tag> mapToTag(List<TagDTO> tags) {
-        return tags.stream().map(tagDTO -> new Tag(tagDTO.getTagName())).collect(Collectors.toList());
-    }
-
-    private Author mapToAuthor(AuthorDTO authorDTO){
-        return new Author(authorDTO.getFullName());
-
-    }
-
-    private Camera mapToCamera(CameraDTO cameraDTO){
-        return new Camera(cameraDTO.getCameraName());
-    }
-//
-//    private List<Tag> mapToTag(List<String> tags) {
-//        return tags.stream().map(tag -> new Tag(tag)).collect(Collectors.toList());
-//    }
-
 }

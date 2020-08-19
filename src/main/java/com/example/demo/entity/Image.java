@@ -3,37 +3,46 @@ package com.example.demo.entity;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.GenericGenerator;
 
 import javax.persistence.*;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @Entity
 @Data
-//@NoArgsConstructor
+@NoArgsConstructor
 @AllArgsConstructor
 public class Image {
     @Id
-    @GeneratedValue(generator="system-uuid")
-    @GenericGenerator(name="system-uuid", strategy = "uuid")
     private String id;
 
     @ManyToOne(cascade = CascadeType.ALL)
     private Author author;
 
-    @ManyToMany(cascade = CascadeType.ALL)
-    @JoinTable(
-            name = "images_tags",
-            joinColumns = @JoinColumn(name = "image_id"),
-            inverseJoinColumns = @JoinColumn(name = "tag_id"))
-    private List<Tag> tags;
-    @OneToOne
+    @ManyToMany(cascade = CascadeType.ALL, targetEntity = Tag.class)
+    private List<Tag> tags = new ArrayList<>();
+
+    @ManyToOne(cascade = CascadeType.ALL)
     private Camera camera;
     private String cropped_picture;
     private String full_picture;
 
-    public Image() {
-        this.id = UUID.randomUUID().toString();
+    public Image(String id, String cropped_picture, String full_picture) {
+        this.id = id;
+        this.cropped_picture = cropped_picture;
+        this.full_picture = full_picture;
+    }
+
+
+    @Override
+    public String toString() {
+        return "Image{" +
+                "id='" + id + '\'' +
+                ", author=" + author.getFullName() +
+                ", tags=" + tags +
+                ", camera=" + camera.getCameraName() +
+                ", cropped_picture='" + cropped_picture + '\'' +
+                ", full_picture='" + full_picture + '\'' +
+                '}';
     }
 }

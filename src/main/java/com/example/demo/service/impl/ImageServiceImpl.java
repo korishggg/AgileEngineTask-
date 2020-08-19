@@ -1,12 +1,12 @@
 package com.example.demo.service.impl;
 
-import com.example.demo.entity.Author;
+import com.example.demo.dto.ImageDTO;
 import com.example.demo.entity.Image;
+import com.example.demo.mapper.ImageMapper;
 import com.example.demo.repository.ImageRepository;
 import com.example.demo.service.ImageService;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -21,14 +21,9 @@ public class ImageServiceImpl implements ImageService {
     }
 
     @Override
-    public List<Image> findAll() {
-        return imageRepository.findAll();
-    }
-
-    @Override
-    public List<Image> findBySearchTerm(String searchTerm) {
-//        TODO
-        return new ArrayList<>();
+    public List<ImageDTO> findAll() {
+        List<Image> images = imageRepository.findAll();
+        return images.stream().map(image -> ImageMapper.mapToImageDTO(image)).collect(Collectors.toList());
     }
 
     @Override
@@ -37,12 +32,7 @@ public class ImageServiceImpl implements ImageService {
     }
 
     @Override
-    public List<Image> saveIfNotExist(List<Image> images) {
-        List<Image>list = imageRepository.findAll();
-        List<Image> toSave = images.stream().filter(image -> !list.contains(image)).collect(Collectors.toList());
-
-        imageRepository.saveAll(toSave);
-
-        return toSave;
+    public List<Image> saveAll(List<Image> images) {
+        return imageRepository.saveAll(images);
     }
 }

@@ -23,5 +23,4 @@ public class RefreshRestController {
         return new ResponseEntity<>(dataFetcherService.fetchImagesByPage(page), HttpStatus.OK);
     }
 
-
 }
